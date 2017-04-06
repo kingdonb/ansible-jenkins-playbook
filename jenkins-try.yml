@@ -1,0 +1,30 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: provisioning
+  vars:
+    owner: kbarret8
+    contact: kingdon.b@nd.edu
+    region: us-east-1
+    instance_type: t2.medium
+    image: ami-f1bd1ae7
+    volume_size: 50
+    vpc_subnet: subnet-5247b879 # - ? verify
+    private_ip: 172.22.84.238
+    private_dns_name: ip-172-22-84-238.ec2.internal
+    security_group: not-used
+    assign_public_ip: yes
+    #keypair: kingdonb-kops # - none, Kerberized
+    #private_key: /Users/kingdonb/.ssh/kingdonb-kops.pem # - none, Kerberized
+    name_tag: jenkins
+    service_tag: jenkins
+    #iam_role: kube-kingdon # - none, not needed
+    #kubernetes_cluster: kube-kingdon # - none, not needed
+
+- name: Configure Jenkins EC2 instance
+  hosts: kube_master
+  gather_facts: True
+  roles:
+    - aws-ec2-node
+    - kube-single

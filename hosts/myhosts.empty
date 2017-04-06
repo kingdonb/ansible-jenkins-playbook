@@ -1,0 +1,5 @@
+[kube_master]
+
+[kube_master:vars]
+ansible_python_interpreter=/usr/bin/python3
+private_dns_name=ip-172-29-151-151.ec2.internal

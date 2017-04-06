@@ -1,0 +1,73 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: provisioning
+  vars:
+    owner: kbarret8
+    contact: kingdon.b@nd.edu
+    region: us-east-1
+    instance_type: t2.medium
+    image: ami-f1bd1ae7
+    volume_size: 50
+    vpc_subnet: subnet-5247b879 # - ? verify
+    private_ip: 172.22.84.238
+    private_dns_name: ip-172-22-84-238.ec2.internal
+    security_group: not-used
+    assign_public_ip: yes
+    #keypair: kingdonb-kops # - none, Kerberized
+    #private_key: /Users/kingdonb/.ssh/kingdonb-kops.pem # - none, Kerberized
+    name_tag: jenkins
+    service_tag: jenkins
+    #iam_role: kube-kingdon # - none, not needed
+    #kubernetes_cluster: kube-kingdon # - none, not needed
+  vars_prompt:
+  - name: "mfatoken"
+    prompt: "Enter mfa token "
+    private: no
+    confirm: no
+
+  tasks:
+    - name: provision  temp server
+      ec2:
+        region: "{{ region }}"
+        key_name: "{{ keypair }}"
+        instance_type: "{{ instance_type }}"
+        image: "{{ image }}"
+        vpc_subnet_id: "{{ vpc_subnet }}"
+        private_ip: "{{ private_ip }}"
+        assign_public_ip: "{{ assign_public_ip }}"
+        instance_profile_name: "{{ iam_role }}"
+        count: 1
+        monitoring: no
+        group: ["{{ security_group }}"]
+        wait: true
+        volumes:
+          - device_name: /dev/sda1
+            volume_size: "{{ volume_size }}"
+            delete_on_termination: true
+        instance_tags:
+          Name: "{{ name_tag }}.oit.nd.edu"
+          Environment: temporary
+          KubernetesCluster: "{{ kubernetes_cluster }}"
+          FQDN: "{{ name_tag }}.oit.nd.edu"
+          Contact: "{{ contact }}"
+          Service: "{{ service_tag }}"
+          Owner: "{{ owner }}"
+          Schedule: alwayson
+      register: ec2
+
+    - name: Add new instance to proper ansible group
+      add_host: hostname='{{name_tag}}' groupname=kube_master ansible_ssh_host="{{item.private_ip}}" ansible_ssh_user=ubuntu ansible_ssh_private_key_file="{{private_key}}"
+      with_items: "{{ec2.instances}}"
+
+    - name: Wait for SSH to come up
+      wait_for: host="{{item.private_ip}}" port=22  search_regex=OpenSSH delay=15 timeout=420 state=started
+      with_items: "{{ec2.instances}}"
+
+- name: Configure Jenkins EC2 instance
+  hosts: kube_master
+  gather_facts: True
+  roles:
+    - aws-ec2-node
+    - kube-single

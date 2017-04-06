@@ -1,0 +1,16 @@
+galaxy_info:
+  author: Kingdon Barrett
+  description: A couple of EC2 node things
+  company: ND OIT
+  license: Apache
+  min_ansible_version: 1.2
+
+  platforms:
+  - name: Ubuntu
+    versions:
+    - xenial
+    - yakkety
+
+  galaxy_tags: []
+
+dependencies: []

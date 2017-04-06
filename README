@@ -1,0 +1,7 @@
+If you are starting kube-single node for the first time
+ansible-playbook -i hosts/myhosts.empty jenkins-create.yml
+
+or
+
+To replay the role (eg, in case the Host Key was rejected)
+ansible-playbook -i hosts/jenkins.hosts jenkins-try.yml

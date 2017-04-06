@@ -1,0 +1,8 @@
+[kube_master]
+172.22.84.238
+
+[kube_master:vars]
+ansible_python_interpreter=/usr/bin/python3
+ansible_user=kbarret8
+ansible_ssh_private_key_file=/Users/kingdonb/.ssh/id_rsa
+private_dns_name=ip-172-22-84-238.ec2.internal

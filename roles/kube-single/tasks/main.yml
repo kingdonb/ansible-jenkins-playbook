@@ -1,0 +1,124 @@
+---
+- name: Add Kubernetes key
+  become: true
+  become_user: root
+  apt_key: >
+    url='https://packages.cloud.google.com/apt/doc/apt-key.gpg'
+    state='present'
+
+- name: Add Kubernetes apt repo
+  become: true
+  become_user: root
+  apt_repository: >
+    repo='deb http://apt.kubernetes.io/ kubernetes-xenial main'
+    state='present'
+    filename='kubernetes'
+    update_cache='yes'
+
+- name: Install Kubernetes packages
+  become: true
+  become_user: root
+  apt: name={{item}} state='present'
+  with_items:
+    - kubelet
+    - kubeadm
+    - kubectl
+    - kubernetes-cni
+    - docker.io
+
+- name: exists - /var/lib/kubelet
+  find: paths=/var/lib/ file_type=directory patterns="kubelet"
+  register: kubelet_dir
+
+- name: register contents of - /var/lib/kubelet
+  find: paths=/var/lib/kubelet/ file_type=directory patterns="*"
+  become: true
+  become_user: root
+  register: kubelet_contents
+  when: kubelet_dir.matched|int != 0
+
+- name: is empty? - /var/lib/kubelet/*/
+  find:
+    paths: ["/var/lib/kubelet/plugins/", "/var/lib/kubelet/pods/"]
+    file_type: directory
+    patterns: "*"
+  become: true
+  become_user: root
+  register: kubelet_inner_contents
+  when: ((kubelet_contents is defined) and (kubelet_contents.matched|int != 0))
+
+- name: rmdir /var/lib/kubelet/plugins
+  file: name=/var/lib/kubelet/plugins state=absent recurse=no
+  become: true
+  become_user: root
+  when: ((kubelet_inner_contents is defined) and (kubelet_inner_contents.matched|int == 0))
+
+- name: rmdir /var/lib/kubelet/pods
+  file: name=/var/lib/kubelet/pods state=absent recurse=no
+  become: true
+  become_user: root
+  when: ((kubelet_inner_contents is defined) and (kubelet_inner_contents.matched|int == 0))
+
+- name: is empty? - pki dir
+  find:
+    paths: /etc/kubernetes/pki/
+    file_type: file
+    patterns: "*"
+  become: true
+  become_user: root
+  register: pki_contents
+
+- name: rmdir /etc/kubernetes/pki
+  file: name=/etc/kubernetes/pki state=absent recurse=no
+  become: true
+  become_user: root
+  when: ((pki_contents is defined) and (pki_contents.matched|int == 0))
+
+- name: Initialize Kubernetes cluster
+  command: 'kubeadm init'
+  args:
+    creates: /etc/kubernetes/pki
+  become: true
+  become_user: root
+
+- name: Setup Pod Networking (CNI)
+  command: 'kubectl apply -f https://git.io/weave-kube'
+
+- name: Download Helm
+  get_url:
+    url: 'https://storage.googleapis.com/kubernetes-helm/helm-v{{ helm_version }}-linux-amd64.tar.gz'
+    dest: '/tmp/helm-v{{ helm_version }}.tar.gz'
+
+- name: Unpack Helm
+  unarchive:
+    src: '/tmp/helm-v{{ helm_version }}.tar.gz'
+    dest: /tmp
+    creates: /tmp/linux-amd64
+    remote_src: true
+
+- name: Make a place for helm binary
+  file: path=/home/kbarret8/bin state=directory mode=0755
+
+- name: Install Helm binary in Home
+  copy:
+    src: /tmp/linux-amd64/helm
+    dest: /home/kbarret8/bin/helm
+    remote_src: true
+    mode: 0755
+
+# - name: Cleanup after Helm binary installation
+#   file: state=absent path=/tmp/linux-amd64
+
+- name: Install Tiller pod (helm)
+  command: '/home/kbarret8/bin/helm init'
+
+# Can't seem to find a way to check if taint was already removed
+- name: Allow kube-master to schedule pods
+  command: 'kubectl taint nodes --all dedicated-'
+  ignore_errors: yes
+
+- name: Clone Jenkins helm chart
+  git:
+    repo: 'https://bitbucket.org/kingdonb/helm-jenkins-chart.git'
+    dest: /home/kbarret8/helm-jenkins-chart
+    version: oit-noaws
